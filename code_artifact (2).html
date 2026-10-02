@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지홍이 키우기 / 타격 게임</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+        .font-impact {
+            font-family: 'Black Han Sans', sans-serif;
+        }
+        
+        /* Dynamic Shake animations */
+        .shake-light { animation: shakeLight 0.12s ease-in-out; }
+        .shake-medium { animation: shakeMedium 0.2s ease-in-out; }
+        .shake-heavy { animation: shakeHeavy 0.3s ease-in-out; }
+        .shake-extreme { animation: shakeExtreme 0.4s cubic-bezier(.36,.07,.19,.97); }
+
+        @keyframes shakeLight {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(-3px, 3px) rotate(-1deg); }
+            75% { transform: translate(3px, -3px) rotate(1deg); }
+        }
+        @keyframes shakeMedium {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-7px, 5px) rotate(-2deg); }
+            40% { transform: translate(7px, -5px) rotate(2deg); }
+            60% { transform: translate(-5px, -7px) rotate(-1deg); }
+            80% { transform: translate(5px, 7px) rotate(1deg); }
+        }
+        @keyframes shakeHeavy {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            20% { transform: translate(-10px, -10px) scale(1.04) rotate(-4deg); }
+            40% { transform: translate(10px, 10px) scale(0.96) rotate(4deg); }
+            60% { transform: translate(-10px, 6px) scale(1.02) rotate(-2deg); }
+            80% { transform: translate(10px, -6px) scale(0.98) rotate(2deg); }
+        }
+        @keyframes shakeExtreme {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            10% { transform: translate(-16px, -16px) scale(1.08) rotate(-6deg); }
+            30% { transform: translate(16px, 12px) scale(0.92) rotate(6deg); }
+            50% { transform: translate(-12px, 16px) scale(1.1) rotate(-4deg); }
+            70% { transform: translate(14px, -12px) scale(0.88) rotate(4deg); }
+            90% { transform: translate(-8px, 8px) scale(1.03) rotate(-2deg); }
+        }
+
+        /* Floating Damage Text */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.8) translateY(0); }
+            30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) translateY(-15px); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) translateY(-70px); }
+        }
+        .damage-popup {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUp 0.65s ease-out forwards;
+            font-weight: 900;
+            text-shadow: 0 0 8px rgba(0,0,0,0.9), 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            z-index: 50;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col justify-between select-none overflow-hidden">
+
+    <!-- Header / Stats Bar -->
+    <header class="bg-slate-900/90 border-b border-purple-900/40 p-3 sm:p-4 sticky top-0 z-30 backdrop-blur">
+        <div class="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-3">
+            <!-- Gold Display -->
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500/20 text-amber-400 p-2.5 sm:p-3 rounded-2xl border border-amber-500/30">
+                    <i class="fa-solid fa-coins text-2xl"></i>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">소지금 (Gold)</div>
+                    <div id="gold-display" class="text-2xl sm:text-3xl font-impact text-amber-400 tracking-wide">0 G</div>
+                </div>
+            </div>
+
+            <!-- Stats Overview -->
+            <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
+                <div class="bg-slate-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-purple-500/20">
+                    <span class="text-slate-400 block text-[10px] sm:text-xs">클릭당 타격력</span>
+                    <span id="dpc-display" class="font-bold text-emerald-400 text-xs sm:text-base">+1 G</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-purple-500/20">
+                    <span class="text-slate-400 block text-[10px] sm:text-xs">초당 알바 수익</span>
+                    <span id="dps-display" class="font-bold text-cyan-400 text-xs sm:text-base">0 G/s</span>
+                </div>
+
+                <!-- Secret Code Permanent Display Badge (Hidden by default, shown when Lv 50 reached) -->
+                <div id="permanent-code-badge" class="hidden bg-gradient-to-r from-amber-500/20 to-purple-500/20 border border-amber-500/50 px-3 py-1.5 rounded-xl flex items-center gap-2 cursor-pointer" title="클릭하여 코드 복사">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <div>
+                        <span class="text-[9px] text-amber-300 font-bold block uppercase tracking-wider">시크릿 코드</span>
+                        <span id="code-text" class="text-xs font-mono font-extrabold text-amber-400 tracking-wide">JMsextankautomachine</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls (Sound / Auto / Reset) -->
+            <div class="flex items-center space-x-2">
+                <button id="auto-btn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5 text-slate-300">
+                    <i class="fa-solid fa-robot text-amber-400"></i>
+                    <span>오토: <span id="auto-status-text" class="text-rose-400">OFF</span></span>
+                </button>
+                <button id="sound-toggle" class="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700 text-slate-300">
+                    <i id="sound-icon" class="fa-solid fa-volume-high text-base"></i>
+                </button>
+                <button id="reset-btn" class="px-2.5 py-2 bg-rose-900/30 hover:bg-rose-800/50 text-rose-300 text-xs rounded-xl border border-rose-700/40 transition" title="초기화">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Canvas & Arena -->
+    <main id="main-container" class="flex-1 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 p-4 items-center relative">
+        
+        <!-- Target Arena -->
+        <div class="lg:col-span-7 flex flex-col items-center justify-center relative min-h-[380px] sm:min-h-[450px] bg-gradient-to-b from-purple-950/40 via-slate-900/80 to-slate-950 rounded-3xl p-6 border border-purple-900/30 shadow-2xl overflow-hidden">
+            
+            <!-- Custom Image Uploader Bar -->
+            <div class="absolute top-4 left-4 right-4 flex justify-between items-center z-20 bg-slate-900/90 p-2 px-3 sm:px-4 rounded-2xl border border-purple-800/40 backdrop-blur">
+                <span class="text-xs text-slate-300 font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-image text-purple-400"></i> 타겟 이미지:
+                </span>
+                <div class="flex items-center gap-2">
+                    <label class="cursor-pointer bg-purple-600 hover:bg-purple-500 text-white text-[11px] px-3 py-1.5 rounded-xl transition font-bold shadow">
+                        <i class="fa-solid fa-upload mr-1"></i> 사진 업로드
+                        <input type="file" id="image-upload" accept="image/*" class="hidden">
+                    </label>
+                    <button id="reset-image-btn" class="text-[11px] text-purple-300 hover:text-white px-2 py-1 underline">
+                        assets/1.png
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas for Dynamic Particle FX -->
+            <canvas id="fx-canvas" class="absolute inset-0 pointer-events-none z-20 w-full h-full"></canvas>
+
+            <!-- Target Character Container -->
+            <div id="target-container" class="relative cursor-pointer transition-transform duration-75 my-auto flex items-center justify-center group my-6">
+                <!-- Aura Glow -->
+                <div id="aura-glow" class="absolute w-60 h-60 sm:w-72 sm:h-72 bg-purple-600/20 rounded-full blur-3xl transition-all duration-300 pointer-events-none"></div>
+
+                <!-- Frame -->
+                <div id="target-frame" class="relative w-56 h-56 sm:w-72 sm:h-72 rounded-full border-4 border-purple-500/60 overflow-hidden shadow-2xl shadow-purple-900/50 transition-all duration-150 transform active:scale-95 bg-slate-900 flex items-center justify-center">
+                    <img id="target-img" src="assets/1.png" alt="지홍이" class="w-full h-full object-cover select-none pointer-events-none transition-transform duration-75">
+                    <div id="hit-flash" class="absolute inset-0 bg-white/0 pointer-events-none transition-colors duration-75"></div>
+                </div>
+            </div>
+
+            <!-- Equipped Weapon Display Banner -->
+            <div class="mt-1 text-center z-10">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">현재 무기</span>
+                <div id="current-weapon-badge" class="inline-flex items-center gap-2 px-5 py-2 bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold rounded-2xl text-base sm:text-lg shadow-lg">
+                    <i id="current-weapon-icon" class="fa-solid fa-feather text-amber-400"></i>
+                    <span id="current-weapon-name">깃털</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Weapon & Auto Helper Shop -->
+        <div class="lg:col-span-5 bg-slate-900/80 rounded-3xl p-4 sm:p-5 border border-purple-900/30 flex flex-col h-[460px] sm:h-[500px]">
+            <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-cart-shopping text-purple-400"></i> 무기 & 알바 상점
+                </h2>
+                <span class="text-xs text-slate-400">3분 폭풍 성장 코스</span>
+            </div>
+
+            <!-- Shop Items List -->
+            <div id="shop-list" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Secret Code Unlock Modal (Level 50 Reward) -->
+    <div id="code-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-slate-900 border-2 border-amber-500/80 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center relative shadow-2xl shadow-amber-500/20">
+            <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border border-amber-500/40">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 class="text-2xl font-impact text-amber-400 mb-2">알바 Lv.50 최고 등급 달성!</h3>
+            <p class="text-sm text-slate-300 mb-6">
+                축하합니다! 자동 타격 알바 Lv.50을 달성하여 VIP 특전 시크릿 코드가 해금되었습니다.
+            </p>
+            <div class="bg-slate-950 border border-amber-500/40 rounded-2xl p-4 mb-6 relative group">
+                <span class="text-xs text-slate-400 block mb-1">시크릿 히든 코드</span>
+                <div class="text-xl sm:text-2xl font-mono font-black text-amber-400 tracking-wider select-all" id="modal-code-text">
+                    JMsextankautomachine
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 mb-6">※ 이 코드는 게임 상단 바에 영구적으로 보관됩니다.</p>
+            <button id="close-modal-btn" class="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-2xl transition shadow-lg text-base">
+                확인 및 코드 수령
+            </button>
+        </div>
+    </div>
+
+    <footer class="text-center py-2.5 text-xs text-slate-600 border-t border-slate-900">
+        지홍이 타격 클리커 &copy; GitHub Pages 레디 버전
+    </footer>
+
+    <script>
+        // 1. Weapon Definitions
+        const WEAPONS = [
+            { id: 'feather', name: '깃털', icon: 'fa-feather', cost: 0, dpc: 1, shake: 'shake-light', fxType: 'feather', desc: '부드러운 간지럼 타격.' },
+            { id: 'fist', name: '주먹', icon: 'fa-hand-fist', cost: 10, dpc: 5, shake: 'shake-light', fxType: 'punch', desc: '매운맛 펀치 세례!' },
+            { id: 'slap', name: '뺨 때리기', icon: 'fa-hand', cost: 50, dpc: 25, shake: 'shake-medium', fxType: 'slap', desc: '찰싹! 정신 오락가락하는 뺨 타격.' },
+            { id: 'bat', name: '야구 방망이', icon: 'fa-baseball-bat-ball', cost: 300, dpc: 140, shake: 'shake-medium', fxType: 'bat', desc: '깡! 사이다 홈런 풀스윙.' },
+            { id: 'pistol', name: '권총', icon: 'fa-gun', cost: 2000, dpc: 850, shake: 'shake-heavy', fxType: 'gun', desc: '빵! 원거리 사격의 시원함.' },
+            { id: 'smg', name: '기관단총', icon: 'fa-burst', cost: 15000, dpc: 5000, shake: 'shake-heavy', fxType: 'smg', desc: '드드득! 연사 폭풍 콤보.' },
+            { id: 'grenade', name: '수류탄', icon: 'fa-bomb', cost: 100000, dpc: 30000, shake: 'shake-extreme', fxType: 'explosion', desc: '콰광! 화면 전체가 흔들리는 대폭발.' }
+        ];
+
+        // Secret Reward Code
+        const SECRET_CODE = "JMsextankautomachine";
+
+        // 2. Global Game State
+        let gameState = {
+            gold: 0,
+            currentWeaponIdx: 0,
+            weaponsUnlocked: [true, false, false, false, false, false, false],
+            autoHelperLevel: 0,
+            autoClickerActive: false,
+            soundMuted: false,
+            codeUnlocked: false,
+            customImageSrc: null
+        };
+
+        // Timers
+        let autoClickerTimer = null;
+        let helperDpsTimer = null;
+
+        // DOM Elements
+        const goldDisplay = document.getElementById('gold-display');
+        const dpcDisplay = document.getElementById('dpc-display');
+        const dpsDisplay = document.getElementById('dps-display');
+        const targetContainer = document.getElementById('target-container');
+        const targetFrame = document.getElementById('target-frame');
+        const targetImg = document.getElementById('target-img');
+        const hitFlash = document.getElementById('hit-flash');
+        const auraGlow = document.getElementById('aura-glow');
+        const shopList = document.getElementById('shop-list');
+        const currentWeaponIcon = document.getElementById('current-weapon-icon');
+        const currentWeaponName = document.getElementById('current-weapon-name');
+        const imageUpload = document.getElementById('image-upload');
+        const resetImageBtn = document.getElementById('reset-image-btn');
+        const autoBtn = document.getElementById('auto-btn');
+        const autoStatusText = document.getElementById('auto-status-text');
+        const soundToggle = document.getElementById('sound-toggle');
+        const soundIcon = document.getElementById('sound-icon');
+        const resetBtn = document.getElementById('reset-btn');
+        const mainContainer = document.getElementById('main-container');
+        const codeModal = document.getElementById('code-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const permanentCodeBadge = document.getElementById('permanent-code-badge');
+
+        // Canvas Setup
+        const canvas = document.getElementById('fx-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 100);
+
+        // Web Audio Procedural SFX
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playHitSound(type) {
+            if (gameState.soundMuted) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'feather') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(150, now + 0.08);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } 
+            else if (type === 'punch') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+            else if (type === 'slap') {
+                const bufferSize = audioCtx.sampleRate * 0.07;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(900, now);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+            }
+            else if (type === 'bat') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.18);
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.18);
+            }
+            else if (type === 'gun' || type === 'smg') {
+                const dur = type === 'smg' ? 0.08 : 0.16;
+                const bufferSize = audioCtx.sampleRate * dur;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.7, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+            }
+            else if (type === 'explosion') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(110, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+
+                const bufferSize = audioCtx.sampleRate * 0.4;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                const noiseGain = audioCtx.createGain();
+                noiseGain.gain.setValueAtTime(0.8, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+                osc.connect(gain);
+                noise.connect(noiseGain);
+                gain.connect(audioCtx.destination);
+                noiseGain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+                noise.start(now);
+            }
+        }
+
+        // Particle System
+        let particles = [];
+        class Particle {
+            constructor(x, y, color, size, speedX, speedY, life) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = size;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.life = life;
+                this.maxLife = life;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += 0.12;
+                this.size *= 0.94;
+                this.life -= 1;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Math.max(0.1, this.size), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createImpactParticles(x, y, type) {
+            const count = type === 'explosion' ? 45 : (type === 'smg' ? 18 : 10);
+            const colors = {
+                feather: ['#fef08a', '#ffffff', '#e2e8f0'],
+                punch: ['#f87171', '#ef4444', '#fb923c'],
+                slap: ['#f472b6', '#fb7185', '#ffffff'],
+                bat: ['#f59e0b', '#d97706', '#fef08a'],
+                gun: ['#fbbf24', '#f59e0b', '#cbd5e1'],
+                smg: ['#f59e0b', '#ef4444', '#fef08a'],
+                explosion: ['#ef4444', '#f97316', '#eab308', '#a855f7']
+            }[type] || ['#fbbf24', '#ffffff'];
+
+            for (let i = 0; i < count; i++) {
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (Math.random() * 6 + 2) * (type === 'explosion' ? 2 : 1);
+                const size = Math.random() * (type === 'explosion' ? 6 : 3.5) + 2;
+                particles.push(new Particle(
+                    x, y, color, size,
+                    Math.cos(angle) * speed,
+                    Math.sin(angle) * speed,
+                    Math.random() * 16 + 16
+                ));
+            }
+        }
+
+        function renderParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw(ctx);
+                if (particles[i].life <= 0 || particles[i].size <= 0.2) {
+                    particles.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(renderParticles);
+        }
+        renderParticles();
+
+        // Core Attack Logic
+        function triggerHit(e = null) {
+            const currentWeapon = WEAPONS[gameState.currentWeaponIdx];
+            
+            gameState.gold += currentWeapon.dpc;
+            updateStatsUI();
+            updateShopButtons();
+
+            playHitSound(currentWeapon.fxType);
+
+            mainContainer.classList.remove('shake-light', 'shake-medium', 'shake-heavy', 'shake-extreme');
+            void mainContainer.offsetWidth;
+            mainContainer.classList.add(currentWeapon.shake);
+
+            targetFrame.style.transform = `scale(${0.9 + Math.random() * 0.04}) rotate(${(Math.random() - 0.5) * 10}deg)`;
+            hitFlash.style.backgroundColor = currentWeapon.fxType === 'explosion' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(255, 255, 255, 0.35)';
+            
+            setTimeout(() => {
+                targetFrame.style.transform = 'scale(1) rotate(0deg)';
+                hitFlash.style.backgroundColor = 'rgba(255, 255, 255, 0)';
+            }, 80);
+
+            const rect = targetContainer.getBoundingClientRect();
+            let posX, posY;
+
+            if (e && e.clientX) {
+                posX = e.clientX - rect.left;
+                posY = e.clientY - rect.top;
+            } else {
+                posX = rect.width / 2 + (Math.random() - 0.5) * 60;
+                posY = rect.height / 2 + (Math.random() - 0.5) * 60;
+            }
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const canvasX = (rect.left + posX) - canvasRect.left;
+            const canvasY = (rect.top + posY) - canvasRect.top;
+            createImpactParticles(canvasX, canvasY, currentWeapon.fxType);
+
+            createDamagePopup(posX, posY, `+${formatNumber(currentWeapon.dpc)} G`);
+        }
+
+        function createDamagePopup(x, y, text) {
+            const popup = document.createElement('div');
+            popup.className = 'damage-popup text-amber-300 text-xl sm:text-2xl font-impact';
+            popup.innerText = text;
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+
+            targetContainer.appendChild(popup);
+            setTimeout(() => popup.remove(), 650);
+        }
+
+        // Auto Helper Calculations
+        function getAutoHelperCost() {
+            return Math.floor(80 * Math.pow(1.5, gameState.autoHelperLevel));
+        }
+
+        function getAutoHelperDps() {
+            if (gameState.autoHelperLevel === 0) return 0;
+            return Math.floor(12 * Math.pow(1.45, gameState.autoHelperLevel - 1));
+        }
+
+        // Shop UI Render
+        function renderShop() {
+            shopList.innerHTML = '';
+
+            // 1. Auto Helper Card
+            const helperCost = getAutoHelperCost();
+            const helperDps = getAutoHelperDps();
+
+            const helperCard = document.createElement('div');
+            helperCard.className = 'p-3 rounded-2xl border bg-slate-800/80 border-purple-500/30 hover:bg-slate-800 transition flex items-center justify-between gap-3';
+            
+            helperCard.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-lg font-bold border border-cyan-500/30">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <h3 class="font-bold text-sm text-white">자동 타격 알바</h3>
+                            <span class="text-[10px] bg-cyan-500/20 text-cyan-300 font-bold px-2 py-0.5 rounded-full border border-cyan-500/30">Lv.${gameState.autoHelperLevel}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">초당 골드 자동 수급 (Lv.50에 비밀 코드 해금!)</p>
+                        <div class="text-xs text-cyan-400 font-semibold mt-0.5">초당 +${formatNumber(helperDps)} G/s</div>
+                    </div>
+                </div>
+                <button id="buy-helper-btn" class="px-3 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px]">
+                    <span>고용/강화</span>
+                    <span class="text-[10px] font-extrabold" id="helper-cost-text">${formatNumber(helperCost)} G</span>
+                </button>
+            `;
+            shopList.appendChild(helperCard);
+
+            const buyHelperBtn = helperCard.querySelector('#buy-helper-btn');
+            buyHelperBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                buyAutoHelper();
+            });
+
+            // 2. Weapon Cards
+            WEAPONS.forEach((weapon, idx) => {
+                const isUnlocked = gameState.weaponsUnlocked[idx];
+                const isCurrent = gameState.currentWeaponIdx === idx;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    isCurrent 
+                        ? 'bg-purple-500/10 border-purple-500/60 shadow-md shadow-purple-500/10' 
+                        : isUnlocked 
+                            ? 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800' 
+                            : 'bg-slate-900/60 border-slate-800 opacity-80'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+                            isCurrent 
+                                ? 'bg-purple-600 text-white font-bold shadow-lg' 
+                                : isUnlocked 
+                                    ? 'bg-slate-700 text-purple-300' 
+                                    : 'bg-slate-800 text-slate-600'
+                        }">
+                            <i class="fa-solid ${weapon.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <h3 class="font-bold text-sm ${isUnlocked ? 'text-white' : 'text-slate-400'}">${weapon.name}</h3>
+                                ${isCurrent ? '<span class="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-500/30">장착중</span>' : ''}
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">${weapon.desc}</p>
+                            <div class="text-xs mt-0.5 font-semibold text-emerald-400">
+                                타격당 +${formatNumber(weapon.dpc)} G
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        ${isUnlocked ? `
+                            <button class="equip-btn px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                                isCurrent 
+                                    ? 'bg-slate-700 text-slate-400 cursor-default' 
+                                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow cursor-pointer'
+                            }">
+                                ${isCurrent ? '장착됨' : '장착'}
+                            </button>
+                        ` : `
+                            <button data-weapon-idx="${idx}" class="buy-weapon-btn px-3.5 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px]">
+                                <span>구매</span>
+                                <span class="text-[10px] font-extrabold">${formatNumber(weapon.cost)} G</span>
+                            </button>
+                        `}
+                    </div>
+                `;
+
+                shopList.appendChild(card);
+
+                if (isUnlocked) {
+                    const equipBtn = card.querySelector('.equip-btn');
+                    if (equipBtn && !isCurrent) {
+                        equipBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            equipWeapon(idx);
+                        });
+                    }
+                } else {
+                    const buyBtn = card.querySelector('.buy-weapon-btn');
+                    if (buyBtn) {
+                        buyBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            buyWeapon(idx);
+                        });
+                    }
+                }
+            });
+
+            updateShopButtons();
+        }
+
+        function updateShopButtons() {
+            const helperBtn = document.getElementById('buy-helper-btn');
+            if (helperBtn) {
+                const cost = getAutoHelperCost();
+                if (gameState.gold >= cost) {
+                    helperBtn.className = "px-3 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px] bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-md active:scale-95 cursor-pointer";
+                } else {
+                    helperBtn.className = "px-3 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px] bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed";
+                }
+            }
+
+            const weaponBtns = document.querySelectorAll('.buy-weapon-btn');
+            weaponBtns.forEach(btn => {
+                const idx = parseInt(btn.getAttribute('data-weapon-idx'));
+                if (!isNaN(idx)) {
+                    const cost = WEAPONS[idx].cost;
+                    if (gameState.gold >= cost) {
+                        btn.className = "buy-weapon-btn px-3.5 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px] bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md active:scale-95 cursor-pointer";
+                    } else {
+                        btn.className = "buy-weapon-btn px-3.5 py-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center min-w-[85px] bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed";
+                    }
+                }
+            });
+        }
+
+        function buyAutoHelper() {
+            const cost = getAutoHelperCost();
+            if (gameState.gold >= cost) {
+                gameState.gold -= cost;
+                gameState.autoHelperLevel++;
+                
+                // Check Level 50 Secret Unlock
+                if (gameState.autoHelperLevel >= 50 && !gameState.codeUnlocked) {
+                    gameState.codeUnlocked = true;
+                    showCodeModal();
+                }
+
+                playHitSound('punch');
+                restartHelperLoop();
+                updateStatsUI();
+                renderShop();
+                saveState();
+            }
+        }
+
+        function showCodeModal() {
+            codeModal.classList.remove('hidden');
+            permanentCodeBadge.classList.remove('hidden');
+            permanentCodeBadge.classList.add('flex');
+        }
+
+        closeModalBtn.addEventListener('click', () => {
+            codeModal.classList.add('hidden');
+        });
+
+        permanentCodeBadge.addEventListener('click', () => {
+            navigator.clipboard.writeText(SECRET_CODE);
+            alert(`시크릿 코드가 클립보드에 복사되었습니다:\n${SECRET_CODE}`);
+        });
+
+        function buyWeapon(idx) {
+            const weapon = WEAPONS[idx];
+            if (gameState.gold >= weapon.cost && !gameState.weaponsUnlocked[idx]) {
+                gameState.gold -= weapon.cost;
+                gameState.weaponsUnlocked[idx] = true;
+                gameState.currentWeaponIdx = idx;
+                playHitSound('bat');
+                updateStatsUI();
+                renderShop();
+                saveState();
+            }
+        }
+
+        function equipWeapon(idx) {
+            if (gameState.weaponsUnlocked[idx]) {
+                gameState.currentWeaponIdx = idx;
+                updateStatsUI();
+                renderShop();
+                saveState();
+            }
+        }
+
+        // Toggle Auto Clicker
+        function toggleAutoClicker() {
+            gameState.autoClickerActive = !gameState.autoClickerActive;
+            startOrStopAutoClicker();
+            saveState();
+        }
+
+        function startOrStopAutoClicker() {
+            if (autoClickerTimer) {
+                clearInterval(autoClickerTimer);
+                autoClickerTimer = null;
+            }
+
+            if (gameState.autoClickerActive) {
+                autoClickerTimer = setInterval(() => {
+                    triggerHit();
+                }, 200);
+            }
+
+            autoStatusText.innerText = gameState.autoClickerActive ? 'ON' : 'OFF';
+            autoStatusText.className = gameState.autoClickerActive ? 'text-emerald-400 font-extrabold' : 'text-rose-400';
+            autoBtn.className = `px-3 py-2 border text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+                gameState.autoClickerActive 
+                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-md' 
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+            }`;
+        }
+        autoBtn.addEventListener('click', toggleAutoClicker);
+
+        // Passive DPS Loop
+        function restartHelperLoop() {
+            if (helperDpsTimer) {
+                clearInterval(helperDpsTimer);
+                helperDpsTimer = null;
+            }
+
+            const dps = getAutoHelperDps();
+            if (dps > 0) {
+                helperDpsTimer = setInterval(() => {
+                    gameState.gold += dps / 10;
+                    updateStatsUI();
+                    updateShopButtons();
+                }, 100);
+            }
+        }
+
+        function updateStatsUI() {
+            const currentWeapon = WEAPONS[gameState.currentWeaponIdx];
+            goldDisplay.innerText = `${formatNumber(gameState.gold)} G`;
+            dpcDisplay.innerText = `+${formatNumber(currentWeapon.dpc)} G`;
+            dpsDisplay.innerText = `${formatNumber(getAutoHelperDps())} G/s`;
+
+            currentWeaponIcon.className = `fa-solid ${currentWeapon.icon} text-amber-400`;
+            currentWeaponName.innerText = currentWeapon.name;
+
+            if (gameState.codeUnlocked) {
+                permanentCodeBadge.classList.remove('hidden');
+                permanentCodeBadge.classList.add('flex');
+            } else {
+                permanentCodeBadge.classList.add('hidden');
+                permanentCodeBadge.classList.remove('flex');
+            }
+
+            const glowColors = [
+                'rgba(245, 158, 11, 0.15)',
+                'rgba(239, 68, 68, 0.22)',
+                'rgba(236, 72, 153, 0.28)',
+                'rgba(168, 85, 247, 0.35)',
+                'rgba(59, 130, 246, 0.40)',
+                'rgba(16, 185, 129, 0.45)',
+                'rgba(168, 85, 247, 0.60)'
+            ];
+            auraGlow.style.backgroundColor = glowColors[gameState.currentWeaponIdx] || glowColors[0];
+        }
+
+        function initTargetImage() {
+            if (gameState.customImageSrc) {
+                targetImg.src = gameState.customImageSrc;
+            } else {
+                targetImg.src = 'assets/1.png';
+            }
+
+            targetImg.onerror = function() {
+                if (!gameState.customImageSrc) {
+                    targetImg.src = 'https://placehold.co/400x400/1e293b/a855f7?text=%EC%A7%80%ED%95%8D%EC%9D%B4';
+                }
+            };
+        }
+
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const result = event.target.result;
+                    targetImg.src = result;
+                    gameState.customImageSrc = result;
+                    saveState();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        resetImageBtn.addEventListener('click', function() {
+            gameState.customImageSrc = null;
+            targetImg.src = 'assets/1.png';
+            saveState();
+        });
+
+        function saveState() {
+            localStorage.setItem('beat_jihong_v4_save', JSON.stringify({
+                gold: gameState.gold,
+                currentWeaponIdx: gameState.currentWeaponIdx,
+                weaponsUnlocked: gameState.weaponsUnlocked,
+                autoHelperLevel: gameState.autoHelperLevel,
+                autoClickerActive: gameState.autoClickerActive,
+                soundMuted: gameState.soundMuted,
+                codeUnlocked: gameState.codeUnlocked,
+                customImageSrc: gameState.customImageSrc
+            }));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('beat_jihong_v4_save');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    gameState.gold = typeof parsed.gold === 'number' ? parsed.gold : 0;
+                    gameState.currentWeaponIdx = parsed.currentWeaponIdx || 0;
+                    gameState.weaponsUnlocked = parsed.weaponsUnlocked || [true, false, false, false, false, false, false];
+                    gameState.autoHelperLevel = parsed.autoHelperLevel || 0;
+                    gameState.autoClickerActive = !!parsed.autoClickerActive;
+                    gameState.soundMuted = !!parsed.soundMuted;
+                    gameState.codeUnlocked = !!parsed.codeUnlocked;
+                    gameState.customImageSrc = parsed.customImageSrc || null;
+                } catch(e) {
+                    console.error('Save state parse error');
+                }
+            }
+            updateSoundIcon();
+            initTargetImage();
+            startOrStopAutoClicker();
+            restartHelperLoop();
+            updateStatsUI();
+            renderShop();
+        }
+
+        function formatNumber(num) {
+            num = Math.floor(num);
+            if (num >= 100000000) return (num / 100000000).toFixed(1) + '억';
+            if (num >= 10000) return (num / 10000).toFixed(1) + '만';
+            return num.toLocaleString();
+        }
+
+        soundToggle.addEventListener('click', () => {
+            gameState.soundMuted = !gameState.soundMuted;
+            updateSoundIcon();
+            saveState();
+        });
+
+        function updateSoundIcon() {
+            soundIcon.className = gameState.soundMuted ? 'fa-solid fa-volume-xmark text-rose-400' : 'fa-solid fa-volume-high text-slate-300';
+        }
+
+        resetBtn.addEventListener('click', () => {
+            if (confirm('모든 진행 상황을 초기화하시겠습니까?')) {
+                if (autoClickerTimer) clearInterval(autoClickerTimer);
+                if (helperDpsTimer) clearInterval(helperDpsTimer);
+                
+                localStorage.removeItem('beat_jihong_v4_save');
+                gameState = {
+                    gold: 0,
+                    currentWeaponIdx: 0,
+                    weaponsUnlocked: [true, false, false, false, false, false, false],
+                    autoHelperLevel: 0,
+                    autoClickerActive: false,
+                    soundMuted: false,
+                    codeUnlocked: false,
+                    customImageSrc: null
+                };
+                initTargetImage();
+                updateSoundIcon();
+                startOrStopAutoClicker();
+                restartHelperLoop();
+                updateStatsUI();
+                renderShop();
+            }
+        });
+
+        targetContainer.addEventListener('mousedown', (e) => {
+            triggerHit(e);
+        });
+
+        targetContainer.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            triggerHit(touch);
+        }, { passive: false });
+
+        window.onload = function() {
+            loadState();
+        };
+    </script>
+</body>
+</html>
